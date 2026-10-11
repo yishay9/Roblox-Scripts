@@ -1,0 +1,592 @@
+--[[
+    Script Name: Yishay's Hub (Teleporter & Movement Controls)
+    Theme: Cosmic Celestial & Geode Gold (Matching logo.png)
+    Description: Minimizes into a floating logo icon by re-using the main logo element seamlessly.
+]]
+
+local Players = game:GetService("Players")
+local UserInputService = game:GetService("UserInputService")
+local TweenService = game:GetService("TweenService")
+local CoreGui = game:GetService("CoreGui")
+local StarterPlayer = game:GetService("StarterPlayer")
+
+local player = Players.LocalPlayer
+local playerGui = player:WaitForChild("PlayerGui")
+
+local guiName = "YishaysHub"
+
+-- Helper function to fetch character humanoid safely
+local function getHumanoid()
+    local character = player.Character
+    if character then
+        return character:FindFirstChildOfClass("Humanoid")
+    end
+    return nil
+end
+
+-- 1. CLEAN UP EXISTING GUI & REVERT STATS IF ALREADY RUNNING
+local existingGui = playerGui:FindFirstChild(guiName) or CoreGui:FindFirstChild(guiName)
+if existingGui then
+    if _G.YishayHubRevertStats then
+        pcall(_G.YishayHubRevertStats)
+    end
+    existingGui:Destroy()
+end
+
+--// SETTINGS & NATIVE STAT RECOVERY
+local isOverriding = false
+
+-- Safe default fallbacks
+local nativeWalkSpeed = 16
+local nativeJumpVal = 50
+local nativeUseJumpPower = true
+
+-- Safely derive native stats from StarterPlayer & current Humanoid
+pcall(function()
+    nativeWalkSpeed = StarterPlayer.CharacterWalkSpeed
+end)
+
+local currentHum = getHumanoid()
+if currentHum then
+    nativeUseJumpPower = currentHum.UseJumpPower
+    if nativeUseJumpPower then
+        nativeJumpVal = currentHum.JumpPower
+    else
+        nativeJumpVal = currentHum.JumpHeight
+    end
+    if not nativeWalkSpeed or nativeWalkSpeed == 0 then
+        nativeWalkSpeed = currentHum.WalkSpeed
+    end
+end
+
+local speedValue = nativeWalkSpeed
+local jumpValue = nativeJumpVal
+
+-- Helper function to restore original stats to humanoid
+local function restoreNativeStats()
+    isOverriding = false
+    local humanoid = getHumanoid()
+    if humanoid then
+        humanoid.WalkSpeed = nativeWalkSpeed
+        if nativeUseJumpPower then
+            humanoid.UseJumpPower = true
+            humanoid.JumpPower = nativeJumpVal
+        else
+            humanoid.UseJumpPower = false
+            humanoid.JumpHeight = nativeJumpVal
+        end
+    end
+end
+
+_G.YishayHubRevertStats = restoreNativeStats
+
+--// COSMIC PALETTE
+local COLORS = {
+    Background = Color3.fromRGB(18, 14, 26),
+    Panel = Color3.fromRGB(26, 20, 38),
+    Header = Color3.fromRGB(35, 26, 52),
+    Input = Color3.fromRGB(22, 16, 32),
+    Accent = Color3.fromRGB(212, 175, 55),
+    AccentLight = Color3.fromRGB(245, 215, 110),
+    White = Color3.fromRGB(245, 242, 255),
+    Muted = Color3.fromRGB(165, 150, 195),
+    Green = Color3.fromRGB(75, 195, 125),
+    Red = Color3.fromRGB(235, 80, 100),
+    Stroke = Color3.fromRGB(110, 85, 145),
+    GoldStroke = Color3.fromRGB(180, 145, 45),
+}
+
+--// HELPER UI FUNCTIONS
+local function addCorner(object, radius)
+    local corner = Instance.new("UICorner")
+    corner.CornerRadius = UDim.new(0, radius or 16)
+    corner.Parent = object
+    return corner
+end
+
+local function addStroke(object, color, thickness, transparency)
+    local stroke = Instance.new("UIStroke")
+    stroke.Color = color
+    stroke.Thickness = thickness or 1
+    stroke.Transparency = transparency or 0
+    stroke.Parent = object
+    return stroke
+end
+
+local function makeLabel(parent, text, position, size, textSize, color)
+    local label = Instance.new("TextLabel")
+    label.BackgroundTransparency = 1
+    label.Position = position
+    label.Size = size
+    label.Font = Enum.Font.GothamMedium
+    label.Text = text
+    label.TextSize = textSize
+    label.TextColor3 = color
+    label.TextXAlignment = Enum.TextXAlignment.Left
+    label.Parent = parent
+    return label
+end
+
+-- 2. CREATE SCREEN GUI
+local screenGui = Instance.new("ScreenGui")
+screenGui.Name = guiName
+screenGui.ResetOnSpawn = false
+screenGui.DisplayOrder = 10
+screenGui.Parent = playerGui
+
+-- 3. MAIN WINDOW FRAME
+local mainFrame = Instance.new("Frame")
+mainFrame.Name = "MainFrame"
+mainFrame.Size = UDim2.new(0, 360, 0, 440)
+mainFrame.Position = UDim2.new(0.5, -180, 0.5, -220)
+mainFrame.BackgroundColor3 = COLORS.Background
+mainFrame.BorderSizePixel = 0
+mainFrame.ClipsDescendants = true
+mainFrame.Parent = screenGui
+
+addCorner(mainFrame, 22)
+addStroke(mainFrame, COLORS.GoldStroke, 1.5, 0.1)
+
+-- 4. TOP TITLE BAR
+local titleBar = Instance.new("Frame")
+titleBar.Name = "TitleBar"
+titleBar.Size = UDim2.new(1, 0, 0, 55)
+titleBar.BackgroundColor3 = COLORS.Header
+titleBar.BorderSizePixel = 0
+titleBar.Parent = mainFrame
+
+addCorner(titleBar, 22)
+
+local headerGradient = Instance.new("UIGradient")
+headerGradient.Color = ColorSequence.new({
+    ColorSequenceKeypoint.new(0, Color3.fromRGB(50, 35, 75)),
+    ColorSequenceKeypoint.new(1, Color3.fromRGB(26, 18, 42)),
+})
+headerGradient.Parent = titleBar
+
+local logoImage = Instance.new("ImageLabel")
+logoImage.Name = "LogoImage"
+logoImage.Size = UDim2.fromOffset(36, 36)
+logoImage.Position = UDim2.new(0, 12, 0.5, -18)
+logoImage.BackgroundTransparency = 1
+logoImage.ScaleType = Enum.ScaleType.Fit
+logoImage.Parent = titleBar
+addCorner(logoImage, 10)
+
+if isfile and isfile("logo.png") then
+    local success, asset = pcall(function()
+        return getcustomasset("logo.png")
+    end)
+    if success and asset then
+        logoImage.Image = asset
+    else
+        logoImage.Image = "rbxassetid://82765252056199"
+    end
+else
+    logoImage.Image = "rbxassetid://82765252056199"
+end
+
+local titleLabel = makeLabel(titleBar, "Yishay's Hub", UDim2.fromOffset(58, 10), UDim2.new(1, -130, 0, 22), 15, COLORS.Accent)
+titleLabel.Font = Enum.Font.GothamBold
+
+local subtitleLabel = makeLabel(titleBar, "Celestial Teleporter & Movement", UDim2.fromOffset(58, 30), UDim2.new(1, -130, 0, 16), 11, COLORS.Muted)
+
+-- 5. CLOSE BUTTON
+local closeButton = Instance.new("TextButton")
+closeButton.Name = "CloseButton"
+closeButton.Size = UDim2.new(0, 30, 0, 30)
+closeButton.Position = UDim2.new(1, -38, 0.5, -15)
+closeButton.BackgroundColor3 = COLORS.Red
+closeButton.Text = "×"
+closeButton.TextColor3 = COLORS.White
+closeButton.TextSize = 20
+closeButton.Font = Enum.Font.GothamBold
+closeButton.Parent = titleBar
+addCorner(closeButton, 12)
+
+-- 6. MINIMIZE BUTTON
+local collapseButton = Instance.new("TextButton")
+collapseButton.Name = "CollapseButton"
+collapseButton.Size = UDim2.new(0, 30, 0, 30)
+collapseButton.Position = UDim2.new(1, -74, 0.5, -15)
+collapseButton.BackgroundColor3 = COLORS.Input
+collapseButton.Text = "−"
+collapseButton.TextColor3 = COLORS.White
+collapseButton.TextSize = 18
+collapseButton.Font = Enum.Font.GothamBold
+collapseButton.Parent = titleBar
+addCorner(collapseButton, 12)
+addStroke(collapseButton, COLORS.Stroke, 1, 0.3)
+
+-- 7. FLOATING MINIMIZED BUTTON
+local floatingLogoBtn = Instance.new("TextButton")
+floatingLogoBtn.Name = "FloatingLogo"
+floatingLogoBtn.Size = UDim2.fromOffset(52, 52)
+floatingLogoBtn.Position = mainFrame.Position
+floatingLogoBtn.BackgroundColor3 = COLORS.Header
+floatingLogoBtn.Text = ""
+floatingLogoBtn.AutoButtonColor = true
+floatingLogoBtn.Visible = false
+floatingLogoBtn.Parent = screenGui
+addCorner(floatingLogoBtn, 26)
+addStroke(floatingLogoBtn, COLORS.GoldStroke, 1.8, 0.1)
+
+-- 8. CONTENT CONTAINER
+local contentContainer = Instance.new("ScrollingFrame")
+contentContainer.Name = "ContentContainer"
+contentContainer.Size = UDim2.new(1, 0, 1, -55)
+contentContainer.Position = UDim2.new(0, 0, 0, 55)
+contentContainer.BackgroundTransparency = 1
+contentContainer.CanvasSize = UDim2.new(0, 0, 0, 395)
+contentContainer.ScrollBarThickness = 3
+contentContainer.ScrollBarImageColor3 = COLORS.Accent
+contentContainer.Parent = mainFrame
+
+-- === SECTION A: WORLD PIVOT TELEPORTER ===
+local tpSectionTitle = makeLabel(contentContainer, "WORLD PIVOT TELEPORTER", UDim2.fromOffset(18, 12), UDim2.new(1, -36, 0, 18), 10, COLORS.Accent)
+tpSectionTitle.Font = Enum.Font.GothamBold
+
+local textBox = Instance.new("TextBox")
+textBox.Name = "PivotInput"
+textBox.Size = UDim2.new(1, -36, 0, 45)
+textBox.Position = UDim2.fromOffset(18, 35)
+textBox.BackgroundColor3 = COLORS.Input
+textBox.TextColor3 = COLORS.White
+textBox.PlaceholderColor3 = COLORS.Muted
+textBox.PlaceholderText = "Paste WorldPivot (-417.3, 7.8, ...)"
+textBox.Text = ""
+textBox.TextSize = 12
+textBox.Font = Enum.Font.Code
+textBox.ClearTextOnFocus = false
+textBox.MultiLine = true
+textBox.Parent = contentContainer
+addCorner(textBox, 12)
+addStroke(textBox, COLORS.Stroke, 1, 0.3)
+
+local executeButton = Instance.new("TextButton")
+executeButton.Name = "ExecuteButton"
+executeButton.Size = UDim2.new(1, -36, 0, 38)
+executeButton.Position = UDim2.fromOffset(18, 88)
+executeButton.BackgroundColor3 = COLORS.Accent
+executeButton.Text = "Execute Teleport"
+executeButton.TextColor3 = COLORS.Background
+executeButton.TextSize = 13
+executeButton.Font = Enum.Font.GothamBold
+executeButton.Parent = contentContainer
+addCorner(executeButton, 12)
+
+-- === SECTION B: MOVEMENT CONTROLS ===
+local movSectionTitle = makeLabel(contentContainer, "CHARACTER MOVEMENT", UDim2.fromOffset(18, 142), UDim2.new(1, -36, 0, 18), 10, COLORS.Accent)
+movSectionTitle.Font = Enum.Font.GothamBold
+
+-- Speed Controls
+makeLabel(contentContainer, "Walk Speed", UDim2.fromOffset(18, 168), UDim2.new(0, 100, 0, 20), 12, COLORS.White)
+
+local speedValueLabel = Instance.new("TextLabel")
+speedValueLabel.Size = UDim2.new(0, 65, 0, 20)
+speedValueLabel.Position = UDim2.new(1, -48, 0, 168)
+speedValueLabel.BackgroundTransparency = 1
+speedValueLabel.Text = tostring(speedValue)
+speedValueLabel.TextSize = 12
+speedValueLabel.Font = Enum.Font.GothamBold
+speedValueLabel.TextColor3 = COLORS.AccentLight
+speedValueLabel.TextXAlignment = Enum.TextXAlignment.Right
+speedValueLabel.Parent = contentContainer
+
+local speedInput = Instance.new("TextBox")
+speedInput.Name = "SpeedInput"
+speedInput.Size = UDim2.new(1, -36, 0, 35)
+speedInput.Position = UDim2.fromOffset(18, 192)
+speedInput.BackgroundColor3 = COLORS.Input
+speedInput.TextColor3 = COLORS.White
+speedInput.PlaceholderText = "Speed (0 - 500)"
+speedInput.PlaceholderColor3 = COLORS.Muted
+speedInput.Text = tostring(speedValue)
+speedInput.TextSize = 13
+speedInput.Font = Enum.Font.Gotham
+speedInput.ClearTextOnFocus = false
+speedInput.Parent = contentContainer
+addCorner(speedInput, 12)
+addStroke(speedInput, COLORS.Stroke, 1, 0.3)
+
+-- Jump Controls
+makeLabel(contentContainer, "Jump Power", UDim2.fromOffset(18, 238), UDim2.new(0, 100, 0, 20), 12, COLORS.White)
+
+local jumpValueLabel = Instance.new("TextLabel")
+jumpValueLabel.Size = UDim2.new(0, 65, 0, 20)
+jumpValueLabel.Position = UDim2.new(1, -48, 0, 238)
+jumpValueLabel.BackgroundTransparency = 1
+jumpValueLabel.Text = tostring(jumpValue)
+jumpValueLabel.TextSize = 12
+jumpValueLabel.Font = Enum.Font.GothamBold
+jumpValueLabel.TextColor3 = COLORS.AccentLight
+jumpValueLabel.TextXAlignment = Enum.TextXAlignment.Right
+jumpValueLabel.Parent = contentContainer
+
+local jumpInput = Instance.new("TextBox")
+jumpInput.Name = "JumpInput"
+jumpInput.Size = UDim2.new(1, -36, 0, 35)
+jumpInput.Position = UDim2.fromOffset(18, 262)
+jumpInput.BackgroundColor3 = COLORS.Input
+jumpInput.TextColor3 = COLORS.White
+jumpInput.PlaceholderText = "Jump Power (0 - 500)"
+jumpInput.PlaceholderColor3 = COLORS.Muted
+jumpInput.Text = tostring(jumpValue)
+jumpInput.TextSize = 13
+jumpInput.Font = Enum.Font.Gotham
+jumpInput.ClearTextOnFocus = false
+jumpInput.Parent = contentContainer
+addCorner(jumpInput, 12)
+addStroke(jumpInput, COLORS.Stroke, 1, 0.3)
+
+-- Apply & Reset Movement Buttons
+local applyMovementButton = Instance.new("TextButton")
+applyMovementButton.Name = "ApplyMovementButton"
+applyMovementButton.Size = UDim2.new(0.5, -22, 0, 36)
+applyMovementButton.Position = UDim2.fromOffset(18, 308)
+applyMovementButton.BackgroundColor3 = COLORS.Green
+applyMovementButton.Text = "Apply Stats"
+applyMovementButton.TextColor3 = COLORS.White
+applyMovementButton.TextSize = 12
+applyMovementButton.Font = Enum.Font.GothamBold
+applyMovementButton.Parent = contentContainer
+addCorner(applyMovementButton, 12)
+
+local resetMovementButton = Instance.new("TextButton")
+resetMovementButton.Name = "ResetMovementButton"
+resetMovementButton.Size = UDim2.new(0.5, -22, 0, 36)
+resetMovementButton.Position = UDim2.new(0.5, 4, 0, 308)
+resetMovementButton.BackgroundColor3 = COLORS.Input
+resetMovementButton.Text = "Reset"
+resetMovementButton.TextColor3 = COLORS.White
+resetMovementButton.TextSize = 12
+resetMovementButton.Font = Enum.Font.GothamBold
+resetMovementButton.Parent = contentContainer
+addCorner(resetMovementButton, 12)
+addStroke(resetMovementButton, COLORS.Stroke, 1, 0.3)
+
+-- Status Bar
+local statusLabel = makeLabel(contentContainer, "● Passive Mode (Game logic active)", UDim2.fromOffset(18, 358), UDim2.new(1, -36, 0, 20), 11, COLORS.Muted)
+
+-- 9. DRAGGABILITY LOGIC (Main Window)
+local dragging, dragStart, startPos
+
+titleBar.InputBegan:Connect(function(input)
+    if input.UserInputType == Enum.UserInputType.MouseButton1 or input.UserInputType == Enum.UserInputType.Touch then
+        dragging = true
+        dragStart = input.Position
+        startPos = mainFrame.Position
+        
+        input.Changed:Connect(function()
+            if input.UserInputState == Enum.UserInputState.End then
+                dragging = false
+            end
+        end)
+    end
+end)
+
+UserInputService.InputChanged:Connect(function(input)
+    if dragging and (input.UserInputType == Enum.UserInputType.MouseMovement or input.UserInputType == Enum.UserInputType.Touch) then
+        local delta = input.Position - dragStart
+        mainFrame.Position = UDim2.new(
+            startPos.X.Scale, 
+            startPos.X.Offset + delta.X, 
+            startPos.Y.Scale, 
+            startPos.Y.Offset + delta.Y
+        )
+    end
+end)
+
+-- 10. DRAGGABILITY & CLICK LOGIC (Floating Logo)
+local floatDragging, floatDragStart, floatStartPos, floatMoved = false, nil, nil, false
+
+floatingLogoBtn.InputBegan:Connect(function(input)
+    if input.UserInputType == Enum.UserInputType.MouseButton1 or input.UserInputType == Enum.UserInputType.Touch then
+        floatDragging = true
+        floatMoved = false
+        floatDragStart = input.Position
+        floatStartPos = floatingLogoBtn.Position
+        
+        local connection
+        connection = input.Changed:Connect(function()
+            if input.UserInputState == Enum.UserInputState.End then
+                floatDragging = false
+                if not floatMoved then
+                    logoImage.Parent = titleBar
+                    logoImage.Size = UDim2.fromOffset(36, 36)
+                    logoImage.Position = UDim2.new(0, 12, 0.5, -18)
+
+                    mainFrame.Position = floatingLogoBtn.Position
+                    floatingLogoBtn.Visible = false
+                    mainFrame.Visible = true
+                end
+                connection:Disconnect()
+            end
+        end)
+    end
+end)
+
+UserInputService.InputChanged:Connect(function(input)
+    if floatDragging and (input.UserInputType == Enum.UserInputType.MouseMovement or input.UserInputType == Enum.UserInputType.Touch) then
+        local delta = input.Position - floatDragStart
+        if delta.Magnitude > 5 then
+            floatMoved = true
+        end
+        floatingLogoBtn.Position = UDim2.new(
+            floatStartPos.X.Scale, 
+            floatStartPos.X.Offset + delta.X, 
+            floatStartPos.Y.Scale, 
+            floatStartPos.Y.Offset + delta.Y
+        )
+    end
+end)
+
+-- 11. MINIMIZE LOGIC
+collapseButton.MouseButton1Click:Connect(function()
+    floatingLogoBtn.Position = mainFrame.Position
+    
+    logoImage.Parent = floatingLogoBtn
+    logoImage.Size = UDim2.fromOffset(38, 38)
+    logoImage.Position = UDim2.new(0.5, -19, 0.5, -19)
+    
+    mainFrame.Visible = false
+    floatingLogoBtn.Visible = true
+end)
+
+-- 12. CLOSE BUTTON LOGIC (Restores stats before destruction)
+closeButton.MouseButton1Click:Connect(function()
+    restoreNativeStats()
+    screenGui:Destroy()
+end)
+
+-- 13. TELEPORT EXECUTION LOGIC
+executeButton.MouseButton1Click:Connect(function()
+    local inputText = textBox.Text
+    inputText = inputText:gsub("[%[%]]", "")
+    
+    local numbers = {}
+    for num in inputText:gmatch("[^,%s]+") do
+        table.insert(numbers, tonumber(num))
+    end
+    
+    if #numbers == 3 or #numbers == 12 then
+        local character = player.Character
+        local rootPart = character and character:FindFirstChild("HumanoidRootPart")
+        
+        if rootPart then
+            local targetCFrame
+            if #numbers == 3 then
+                targetCFrame = CFrame.new(numbers[1], numbers[2], numbers[3])
+            elseif #numbers == 12 then
+                targetCFrame = CFrame.new(
+                    numbers[1], numbers[2], numbers[3],
+                    numbers[4], numbers[5], numbers[6],
+                    numbers[7], numbers[8], numbers[9],
+                    numbers[10], numbers[11], numbers[12]
+                )
+            end
+            
+            character:PivotTo(targetCFrame)
+            
+            executeButton.BackgroundColor3 = COLORS.Green
+            executeButton.Text = "Teleported Successfully!"
+            statusLabel.Text = "✓ Teleported character to target"
+            statusLabel.TextColor3 = COLORS.Green
+            task.wait(1)
+            executeButton.BackgroundColor3 = COLORS.Accent
+            executeButton.Text = "Execute Teleport"
+        end
+    else
+        executeButton.BackgroundColor3 = COLORS.Red
+        executeButton.Text = "Invalid Format (Need 3 or 12 numbers)"
+        task.wait(1.5)
+        executeButton.BackgroundColor3 = COLORS.Accent
+        executeButton.Text = "Execute Teleport"
+    end
+end)
+
+-- 14. MOVEMENT LOGIC & OVERRIDE CONTROL
+local function getValue(text, default)
+    local number = tonumber(text)
+    if not number then return default end
+    return math.clamp(number, 0, 500)
+end
+
+applyMovementButton.MouseButton1Click:Connect(function()
+    speedValue = getValue(speedInput.Text, speedValue)
+    jumpValue = getValue(jumpInput.Text, jumpValue)
+
+    isOverriding = true
+    
+    local humanoid = getHumanoid()
+    if humanoid then
+        if nativeUseJumpPower then
+            humanoid.UseJumpPower = true
+            humanoid.JumpPower = jumpValue
+        else
+            humanoid.UseJumpPower = false
+            humanoid.JumpHeight = jumpValue
+        end
+        humanoid.WalkSpeed = speedValue
+    end
+
+    speedValueLabel.Text = tostring(speedValue)
+    jumpValueLabel.Text = tostring(jumpValue)
+
+    statusLabel.Text = "✓ Custom speed applied"
+    statusLabel.TextColor3 = COLORS.Green
+    applyMovementButton.Text = "Applied!"
+    task.delay(1.2, function()
+        if screenGui.Parent then
+            applyMovementButton.Text = "Apply Stats"
+        end
+    end)
+end)
+
+resetMovementButton.MouseButton1Click:Connect(function()
+    restoreNativeStats()
+
+    speedInput.Text = tostring(nativeWalkSpeed)
+    jumpInput.Text = tostring(nativeJumpVal)
+    speedValueLabel.Text = tostring(nativeWalkSpeed)
+    jumpValueLabel.Text = tostring(nativeJumpVal)
+
+    statusLabel.Text = "↺ Restored game mechanics"
+    statusLabel.TextColor3 = COLORS.Green
+    resetMovementButton.Text = "Reset!"
+    task.delay(1.2, function()
+        if screenGui.Parent then
+            resetMovementButton.Text = "Reset"
+        end
+    end)
+end)
+
+-- Reset override state if player respawns
+player.CharacterAdded:Connect(function()
+    isOverriding = false
+end)
+
+-- Main enforcement loop
+task.spawn(function()
+    while screenGui.Parent do
+        task.wait(0.1)
+        local humanoid = getHumanoid()
+        if humanoid then
+            if isOverriding then
+                humanoid.WalkSpeed = speedValue
+                if nativeUseJumpPower then
+                    humanoid.UseJumpPower = true
+                    humanoid.JumpPower = jumpValue
+                else
+                    humanoid.UseJumpPower = false
+                    humanoid.JumpHeight = jumpValue
+                end
+            else
+                speedValueLabel.Text = tostring(humanoid.WalkSpeed)
+                jumpValueLabel.Text = tostring(nativeUseJumpPower and humanoid.JumpPower or humanoid.JumpHeight)
+            end
+        end
+    end
+end)
+
+print("Yishay's Hub initialized successfully.")
