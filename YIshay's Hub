@@ -7,15 +7,28 @@
 local Players = game:GetService("Players")
 local UserInputService = game:GetService("UserInputService")
 local TweenService = game:GetService("TweenService")
-local CoreGui = game:GetService("CoreGui")
 local StarterPlayer = game:GetService("StarterPlayer")
 
 local player = Players.LocalPlayer
-local playerGui = player:WaitForChild("PlayerGui")
+if not player then
+    player = Players.PlayerAdded:Wait()
+end
 
+local playerGui = player:WaitForChild("PlayerGui", 5) or player.PlayerGui
 local guiName = "YishaysHub"
 
--- Helper function to fetch character humanoid safely
+-- 1. CLEAN UP EXISTING GUI SAFELY
+pcall(function()
+    if _G.YishayHubRevertStats then
+        _G.YishayHubRevertStats()
+    end
+    local existingGui = playerGui:FindFirstChild(guiName)
+    if existingGui then
+        existingGui:Destroy()
+    end
+end)
+
+-- Safe helper to fetch character humanoid
 local function getHumanoid()
     local character = player.Character
     if character then
@@ -24,26 +37,20 @@ local function getHumanoid()
     return nil
 end
 
--- 1. CLEAN UP EXISTING GUI & REVERT STATS IF ALREADY RUNNING
-local existingGui = playerGui:FindFirstChild(guiName) or CoreGui:FindFirstChild(guiName)
-if existingGui then
-    if _G.YishayHubRevertStats then
-        pcall(_G.YishayHubRevertStats)
-    end
-    existingGui:Destroy()
-end
-
 --// SETTINGS & NATIVE STAT RECOVERY
 local isOverriding = false
-
--- Safe default fallbacks
 local nativeWalkSpeed = 16
 local nativeJumpVal = 50
 local nativeUseJumpPower = true
 
--- Safely derive native stats from StarterPlayer & current Humanoid
 pcall(function()
     nativeWalkSpeed = StarterPlayer.CharacterWalkSpeed
+    nativeUseJumpPower = StarterPlayer.CharacterUseJumpPower
+    if nativeUseJumpPower then
+        nativeJumpVal = StarterPlayer.CharacterJumpPower
+    else
+        nativeJumpVal = StarterPlayer.CharacterJumpHeight
+    end
 end)
 
 local currentHum = getHumanoid()
@@ -54,7 +61,7 @@ if currentHum then
     else
         nativeJumpVal = currentHum.JumpHeight
     end
-    if not nativeWalkSpeed or nativeWalkSpeed == 0 then
+    if currentHum.WalkSpeed > 0 then
         nativeWalkSpeed = currentHum.WalkSpeed
     end
 end
@@ -62,7 +69,6 @@ end
 local speedValue = nativeWalkSpeed
 local jumpValue = nativeJumpVal
 
--- Helper function to restore original stats to humanoid
 local function restoreNativeStats()
     isOverriding = false
     local humanoid = getHumanoid()
@@ -127,7 +133,7 @@ local function makeLabel(parent, text, position, size, textSize, color)
     return label
 end
 
--- 2. CREATE SCREEN GUI
+-- 2. CREATE SCREEN GUI (Guaranteed to pop up immediately)
 local screenGui = Instance.new("ScreenGui")
 screenGui.Name = guiName
 screenGui.ResetOnSpawn = false
@@ -453,7 +459,7 @@ collapseButton.MouseButton1Click:Connect(function()
     floatingLogoBtn.Visible = true
 end)
 
--- 12. CLOSE BUTTON LOGIC (Restores stats before destruction)
+-- 12. CLOSE BUTTON LOGIC
 closeButton.MouseButton1Click:Connect(function()
     restoreNativeStats()
     screenGui:Destroy()
@@ -561,7 +567,6 @@ resetMovementButton.MouseButton1Click:Connect(function()
     end)
 end)
 
--- Reset override state if player respawns
 player.CharacterAdded:Connect(function()
     isOverriding = false
 end)
